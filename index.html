@@ -1,0 +1,224 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>NotionVault Christmas Widget</title>
+  <style>
+    :root {
+      --cream: #f5ede6;
+      --brown: #9b6b4a;
+      --accent: #c97e58;
+      --ink: #4d4d4d;
+      --muted: #8b817a;
+      --track: #e7d8cc;
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body {
+      width: 100%;
+      min-height: 100%;
+      margin: 0;
+      overflow: hidden;
+      background: transparent;
+      color: var(--ink);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    body { padding: 10px; }
+
+    .card {
+      width: 100%;
+      min-height: 190px;
+      padding: 18px;
+      border: 1px solid rgba(155, 107, 74, .18);
+      border-radius: 16px;
+      background: var(--cream);
+      box-shadow: 0 7px 22px rgba(77, 77, 77, .06);
+    }
+
+    h1 {
+      margin: 0 0 14px;
+      color: var(--brown);
+      font-size: clamp(15px, 3.2vw, 20px);
+      font-weight: 750;
+      letter-spacing: .01em;
+      text-align: center;
+    }
+
+    .chart-wrap {
+      display: grid;
+      grid-template-columns: minmax(118px, 42%) 1fr;
+      gap: 16px;
+      align-items: center;
+    }
+
+    .donut {
+      width: min(160px, 100%);
+      aspect-ratio: 1;
+      margin: auto;
+      transform: rotate(-90deg);
+    }
+
+    .donut circle { fill: none; stroke-width: 18; }
+    .donut .track { stroke: var(--track); }
+
+    .legend {
+      display: grid;
+      gap: 8px;
+      min-width: 0;
+    }
+
+    .legend-row {
+      display: grid;
+      grid-template-columns: 10px minmax(0, 1fr) auto;
+      gap: 8px;
+      align-items: center;
+      font-size: 12px;
+    }
+
+    .dot { width: 9px; height: 9px; border-radius: 50%; }
+    .legend-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .legend-value { color: var(--brown); font-weight: 750; }
+
+    .bars { display: grid; gap: 10px; }
+
+    .bar-row {
+      display: grid;
+      grid-template-columns: minmax(72px, 26%) 1fr auto;
+      gap: 9px;
+      align-items: center;
+      font-size: 12px;
+    }
+
+    .bar-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .bar-track { height: 13px; overflow: hidden; border-radius: 999px; background: var(--track); }
+    .bar-fill { height: 100%; min-width: 2px; border-radius: inherit; background: linear-gradient(90deg, var(--brown), var(--accent)); }
+    .bar-value { min-width: 28px; color: var(--brown); font-weight: 750; text-align: right; }
+
+    .progress-card { display: grid; align-content: center; min-height: 150px; }
+    .progress-label { margin-bottom: 10px; color: var(--brown); font-size: 15px; font-weight: 750; }
+    .progress-track { height: 22px; overflow: hidden; border-radius: 999px; background: var(--track); }
+    .progress-fill { height: 100%; border-radius: inherit; background: linear-gradient(90deg, var(--brown), var(--accent)); }
+    .progress-value { margin-top: 8px; color: var(--muted); font-size: 13px; font-weight: 700; text-align: right; }
+
+    .countdown { display: grid; align-content: center; min-height: 170px; }
+    .countdown-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 9px; }
+    .countdown-unit { padding: 12px 6px; border-radius: 12px; background: rgba(255, 255, 255, .55); text-align: center; }
+    .countdown-number { display: block; color: var(--brown); font-size: clamp(23px, 8vw, 38px); font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1; }
+    .countdown-label { display: block; margin-top: 6px; color: var(--muted); font-size: 10px; font-weight: 750; letter-spacing: .08em; text-transform: uppercase; }
+    .finished { color: var(--brown); font-size: 18px; font-weight: 800; text-align: center; }
+
+    .error { display: grid; min-height: 150px; place-items: center; color: var(--brown); text-align: center; }
+
+    @media (max-width: 390px) {
+      body { padding: 6px; }
+      .card { min-height: 170px; padding: 14px; border-radius: 13px; }
+      .chart-wrap { grid-template-columns: 1fr; gap: 10px; }
+      .donut { width: 120px; }
+      .legend { grid-template-columns: 1fr 1fr; }
+      .countdown-grid { gap: 5px; }
+      .countdown-unit { padding: 10px 3px; }
+    }
+  </style>
+</head>
+<body>
+  <main id="app" class="card" aria-live="polite"></main>
+
+  <script>
+    (() => {
+      "use strict";
+
+      const app = document.querySelector("#app");
+      const params = new URLSearchParams(location.search);
+      const type = (params.get("type") || "countdown").toLowerCase();
+      const title = params.get("title") || "Christmas Planner";
+      const palette = ["#9b6b4a", "#c97e58", "#d7aa87", "#75645b", "#b9947a", "#e2c9b7", "#8e5840", "#c5a996"];
+
+      const escapeHtml = (value) => String(value).replace(/[&<>'"]/g, (char) => ({
+        "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;"
+      })[char]);
+
+      const number = (value) => Number.isFinite(Number(value)) ? Number(value) : 0;
+
+      function readData() {
+        try {
+          const parsed = JSON.parse(params.get("data") || "[]");
+          return Array.isArray(parsed)
+            ? parsed.map((item) => ({ label: String(item.label || "Item"), value: Math.max(0, number(item.value)) }))
+            : [];
+        } catch {
+          return [];
+        }
+      }
+
+      function renderDonut() {
+        const data = readData();
+        if (!data.length) return renderError("No chart data supplied.");
+        const total = data.reduce((sum, item) => sum + item.value, 0) || 1;
+        const radius = 48;
+        const circumference = 2 * Math.PI * radius;
+        let offset = 0;
+        const segments = data.map((item, index) => {
+          const length = (item.value / total) * circumference;
+          const segment = `<circle cx="60" cy="60" r="${radius}" stroke="${palette[index % palette.length]}" stroke-dasharray="${length} ${circumference - length}" stroke-dashoffset="${-offset}" />`;
+          offset += length;
+          return segment;
+        }).join("");
+        const legend = data.map((item, index) => `<div class="legend-row"><span class="dot" style="background:${palette[index % palette.length]}"></span><span class="legend-label">${escapeHtml(item.label)}</span><span class="legend-value">${item.value.toLocaleString("en-US")}</span></div>`).join("");
+        app.innerHTML = `<h1>${escapeHtml(title)}</h1><div class="chart-wrap"><svg class="donut" viewBox="0 0 120 120" role="img" aria-label="${escapeHtml(title)}"><circle class="track" cx="60" cy="60" r="${radius}" />${segments}</svg><div class="legend">${legend}</div></div>`;
+      }
+
+      function renderBars() {
+        const data = readData();
+        if (!data.length) return renderError("No chart data supplied.");
+        const max = Math.max(...data.map((item) => item.value), 1);
+        const rows = data.map((item) => `<div class="bar-row"><span class="bar-label">${escapeHtml(item.label)}</span><span class="bar-track"><span class="bar-fill" style="display:block;width:${(item.value / max) * 100}%"></span></span><span class="bar-value">${item.value.toLocaleString("en-US")}</span></div>`).join("");
+        app.innerHTML = `<h1>${escapeHtml(title)}</h1><div class="bars">${rows}</div>`;
+      }
+
+      function renderProgress() {
+        const value = Math.min(100, Math.max(0, number(params.get("value"))));
+        const label = params.get("label") || title;
+        app.classList.add("progress-card");
+        app.innerHTML = `<div class="progress-label">${escapeHtml(label)}</div><div class="progress-track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${value}"><div class="progress-fill" style="width:${value}%"></div></div><div class="progress-value">${value}%</div>`;
+      }
+
+      function renderCountdown() {
+        app.classList.add("countdown");
+        const rawDate = params.get("date") || "2026-12-24";
+        const target = new Date(`${rawDate}T00:00:00`);
+        if (Number.isNaN(target.getTime())) return renderError("Invalid countdown date.");
+
+        const update = () => {
+          const remaining = target.getTime() - Date.now();
+          if (remaining <= 0) {
+            app.innerHTML = `<h1>${escapeHtml(title)}</h1><div class="finished">Merry Christmas!</div>`;
+            return;
+          }
+          const days = Math.floor(remaining / 86400000);
+          const hours = Math.floor((remaining % 86400000) / 3600000);
+          const minutes = Math.floor((remaining % 3600000) / 60000);
+          const seconds = Math.floor((remaining % 60000) / 1000);
+          const units = [[days, "Days"], [hours, "Hours"], [minutes, "Minutes"], [seconds, "Seconds"]];
+          app.innerHTML = `<h1>${escapeHtml(title)}</h1><div class="countdown-grid">${units.map(([value, label]) => `<div class="countdown-unit"><span class="countdown-number">${String(value).padStart(2, "0")}</span><span class="countdown-label">${label}</span></div>`).join("")}</div>`;
+          setTimeout(update, 1000 - (Date.now() % 1000));
+        };
+        update();
+      }
+
+      function renderError(message) {
+        app.classList.add("error");
+        app.textContent = message;
+      }
+
+      if (type === "donut") renderDonut();
+      else if (type === "bar") renderBars();
+      else if (type === "progress") renderProgress();
+      else renderCountdown();
+    })();
+  </script>
+</body>
+</html>
