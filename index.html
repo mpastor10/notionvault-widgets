@@ -135,7 +135,25 @@
       const params = new URLSearchParams(location.search);
       const type = (params.get("type") || "countdown").toLowerCase();
       const title = params.get("title") || "Christmas Planner";
-      const palette = ["#9b6b4a", "#c97e58", "#d7aa87", "#75645b", "#b9947a", "#e2c9b7", "#8e5840", "#c5a996"];
+
+      const color = (name, fallback) => {
+        const value = params.get(name);
+        return value && /^#[0-9a-f]{6}$/i.test(value) ? value : fallback;
+      };
+
+      const theme = {
+        cream: color("bg", "#f5ede6"),
+        brown: color("primary", "#9b6b4a"),
+        accent: color("accent", "#c97e58"),
+        ink: color("ink", "#4d4d4d"),
+        track: color("track", "#e7d8cc")
+      };
+
+      Object.entries(theme).forEach(([name, value]) => {
+        document.documentElement.style.setProperty(`--${name}`, value);
+      });
+
+      const palette = [theme.brown, theme.accent, "#d7aa87", "#75645b", "#b9947a", "#e2c9b7", "#8e5840", "#c5a996"];
 
       const escapeHtml = (value) => String(value).replace(/[&<>'"]/g, (char) => ({
         "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;"
@@ -189,6 +207,7 @@
       function renderCountdown() {
         app.classList.add("countdown");
         const rawDate = params.get("date") || "2026-12-24";
+        const showSeconds = params.get("seconds") !== "false";
         const target = new Date(`${rawDate}T00:00:00`);
         if (Number.isNaN(target.getTime())) return renderError("Invalid countdown date.");
 
@@ -202,8 +221,9 @@
           const hours = Math.floor((remaining % 86400000) / 3600000);
           const minutes = Math.floor((remaining % 3600000) / 60000);
           const seconds = Math.floor((remaining % 60000) / 1000);
-          const units = [[days, "Days"], [hours, "Hours"], [minutes, "Minutes"], [seconds, "Seconds"]];
-          app.innerHTML = `<h1>${escapeHtml(title)}</h1><div class="countdown-grid">${units.map(([value, label]) => `<div class="countdown-unit"><span class="countdown-number">${String(value).padStart(2, "0")}</span><span class="countdown-label">${label}</span></div>`).join("")}</div>`;
+          const units = [[days, "Days"], [hours, "Hours"], [minutes, "Minutes"]];
+          if (showSeconds) units.push([seconds, "Seconds"]);
+          app.innerHTML = `<h1>${escapeHtml(title)}</h1><div class="countdown-grid" style="grid-template-columns:repeat(${units.length},1fr)">${units.map(([value, label]) => `<div class="countdown-unit"><span class="countdown-number">${String(value).padStart(2, "0")}</span><span class="countdown-label">${label}</span></div>`).join("")}</div>`;
           setTimeout(update, 1000 - (Date.now() % 1000));
         };
         update();
